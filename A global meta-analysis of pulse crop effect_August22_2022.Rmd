@@ -1,0 +1,1855 @@
+---
+title: "A global meta-analysis of pulse crop effect on yield, resource use, and soil organic carbon"
+author: "Ahmed Lasisi"
+date: '2022-08-05'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#The codes herein contain analysis and forest plots for:
+# A: Grain yield (Grainyield)
+#B; Grain nitrogen removal (Nremoval)
+#C: Nitrogen fertilizer use efficicency (FUE)
+#D: Water use efficiency (WUE)
+#E: Soil organic carbon (SOC)
+#F: Study overview
+
+
+#LnRR= lognormalized response ratio
+#V= variance of response ratio for all variables except FUE
+#Vf= variance of response ratio for a FUE
+
+###### ###################################################    
+###### A: GRAIN YIELD ANALYSIS #############################
+######            AND FOREST PLOT ##############################    
+###### ################################################### 
+###### ################################################### 
+#Loadin (packages)
+``` {r}
+library(metafor) #This is the package used for this meta-analysis based on 
+                  #"Conducting Meta-Analyses in R with the metafor Package (Viechtbauer, 2010)
+library(meta)  #This for meta-analysis based on "Doing Meta-Analysis in R A Hands-on Guide (Harre et al. 2021). NOT USED
+library(tidyverse) #for graphing
+library(dplyr)     #for graphing
+library(ggplot2)   #for graphing
+library(ggpubr)    # to check nomarlity
+library(multcomp)  #for multiple mean comparison with Tukey post-hoc (ANOVA)
+library(readxl)
+
+Grainyield  <- read_excel("Meta_analysis pulse_effect.xlsx", 
+    sheet = "Grain_yield")
+
+names(Grainyield) #To see heading in excel file#
+head (Grainyield)#To see first few rows data##
+str(Grainyield) ##To see if my column is character or numerical##
+```
+
+#####To convert to factor######
+``` {r}
+Grainyield$Country <- factor(Grainyield$Country)
+Grainyield$Country
+str(Grainyield$Country)
+Grainyield$Study_name  <- factor(Grainyield$Study_name )
+Grainyield$Publication_year  <- factor(Grainyield$Publication_year)
+Grainyield$Pulse_stubble <- factor(Grainyield$Pulse_stubble)
+Grainyield$Control_stubble <- factor(Grainyield$Control_stubble)
+Grainyield$Result_year <- factor(Grainyield$Result_year)
+Grainyield$Test_crop <- factor(Grainyield$Test_crop)
+Grainyield$Test_crop_grp <- factor(Grainyield$Test_crop_grp)
+Grainyield$Country <- factor(Grainyield$Country)
+Grainyield$Pulse_frequency<- factor(Grainyield$Pulse_frequency)
+Grainyield$Temp_grp<- factor(Grainyield$Temp_grp)
+Grainyield$Precip_grp<- factor(Grainyield$Precip_grp)
+Grainyield$Textural_class<- factor(Grainyield$Textural_class)
+#################################################################
+```
+
+###### Variance as reported in article. Unreported SD were #########
+###### estimated by multiplying mean by 0.1########################
+
+#1
+######******* Analysis global GRAINYIELD (i.e., cereal and oilseed effect)#######
+``` {r}
+global_Grainyield <- rma(LnRR, V, data = Grainyield) #Perform meta-analysis
+                          #LnRR is response ration; v is variance
+summary(global_Grainyield) #To check model estimate and fit statistic
+cbind(exp(global_Grainyield$b),exp(global_Grainyield$se), exp(global_Grainyield$ci.lb),
+      exp(global_Grainyield$ci.ub),global_Grainyield$pval) #To backtransform to original scale
+
+funnel(global_Grainyield)     #To check bias
+regtest(global_Grainyield) #Egger's test for publication bias.
+                          # p>0.5 means no evidence of asymmetry (i.e. no publication bias) 
+
+
+ggqqplot(Grainyield$LnRR)     # Data normality check
+shapiro.test(Grainyield$LnRR)   # Data normality check
+
+```
+
+#2
+######******* Comparing pulse effect increase of WHEAT versus Canola grain yield#######
+``` {r}
+WHT_vs_CAN_yield<- dplyr::filter(Grainyield, Test_crop %in% 
+                                   c("Wheat", "Canola")) #To call data and select on wheat and canola in the test crop
+WHT_vs_CAN_yield
+WHT_vs_CAN_yield <- rma(LnRR, V, 
+                          mods = ~ factor(Test_crop) - 1, data = WHT_vs_CAN_yield)
+                                  #the "mods" allows to estimate the types of test crop for yield (metaregressio/sublevel regression)
+summary(WHT_vs_CAN_yield)
+cbind(exp(WHT_vs_CAN_yield$b),exp(WHT_vs_CAN_yield$se), exp(WHT_vs_CAN_yield$ci.lb),
+      exp(WHT_vs_CAN_yield$ci.ub),WHT_vs_CAN_yield$pval)
+summary(glht(WHT_vs_CAN_yield, linfct=cbind(contrMat(rep(1,2),
+              type="Tukey"))), test=adjusted("none"))#This for Tukey mean comparison. Operates as ANOVA
+                                              
+```
+# ######               Pulse type and Frequency                         ######
+#3
+##*****3a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on CEREAL GRAIN YIELD#######
+``` {r}
+global_cereal1<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+global_cereal <- rma(LnRR, V, data = global_cereal1)
+global_cereal
+summary(global_cereal)
+cbind(exp(global_cereal$b),exp(global_cereal$se), exp(global_cereal$ci.lb),
+        exp(global_cereal$ci.ub),global_cereal$pval)
+
+funnel(global_cereal)
+regtest(global_cereal) #Egger's test for publication bias.. P>0.5 means no evidence 
+                    # of asymmetry .e no publication bias
+ggqqplot(global_cereal1$LnRR)
+shapiro.test(global_cereal1$LnRR)
+```
+
+###***3b***##TO CHECK EFFECT  OF PULSE TYPE  ON CEREAL GRAIN YIELD####################
+``` {r}
+Cereal_Test_crop<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+Cereal_Test_crop             
+Cereal_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1, 
+                   data = Cereal_Test_crop )
+summary(Cereal_pulse_type)
+cbind(exp(Cereal_pulse_type$b),exp(Cereal_pulse_type$se), exp(Cereal_pulse_type$ci.lb),
+      exp(Cereal_pulse_type$ci.ub),Cereal_pulse_type$pval)
+```
+
+###***3c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON CEREAL GRAIN YIELD####################
+``` {r}
+Cereal_Test_crop<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+Cereal_Test_crop             
+Cereal_pulse_freq <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1, 
+                         data = Cereal_Test_crop )
+summary(Cereal_pulse_freq)
+cbind(exp(Cereal_pulse_freq$b),exp(Cereal_pulse_freq$se), exp(Cereal_pulse_freq$ci.lb),
+      exp(Cereal_pulse_freq$ci.ub),Cereal_pulse_freq$pval)
+```
+
+#4
+### CANOLA IS THE ONLY OILSEED###############
+##**4a**This model checks GLOBAL EFFECT of inclusion of pulses on CANOLA GRAIN YIELD#######
+``` {r}
+Global_oilseed1<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+Global_oilseed <- rma(LnRR, V, data = Global_oilseed1)
+Global_oilseed
+fitstats(Global_oilseed)
+cbind(exp(Global_oilseed$b),exp(Global_oilseed$se), exp(Global_oilseed$ci.lb),
+      exp(Global_oilseed$ci.ub),Global_oilseed$pval)
+
+```
+
+###***4b***##TO CHECK EFFECT  OF PULSE TYPE  ON CANOLA GRAIN YIELD####################
+``` {r}
+Oilseed_Test_crop<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+Oilseed_Test_crop             
+Oilseed_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1, 
+                         data = Oilseed_Test_crop )
+summary(Oilseed_pulse_type)
+cbind(exp(Oilseed_pulse_type$b),exp(Oilseed_pulse_type$se), exp(Oilseed_pulse_type$ci.lb),
+      exp(Oilseed_pulse_type$ci.ub),Oilseed_pulse_type$pval)
+summary(glht(Oilseed_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***4c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON CANOLA GRAIN YIELD####################
+``` {r}
+Oilseed_Test_crop<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+Oilseed_Test_crop             
+Oilseed_pulse_freq <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1, 
+                         data = Oilseed_Test_crop )
+summary(Oilseed_pulse_freq)
+cbind(exp(Oilseed_pulse_freq$b),exp(Oilseed_pulse_freq$se), exp(Oilseed_pulse_freq$ci.lb),
+      exp(Oilseed_pulse_freq$ci.ub),Oilseed_pulse_freq$pval)
+
+summary(glht(Oilseed_pulse_freq, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+ 
+##****4d****#This model compares PULSES-canola vs differentcrops-canola #######
+``` {r}
+ Canola_testcrop<- dplyr::filter(Grainyield, Test_crop %in% c("Canola"))
+ Canola_testcrop             
+ CanolaByStubble2 <- rma(LnRR2, V, 
+                        mods = ~ factor(Control_stubble) - 1, data = Canola_testcrop)
+ summary(CanolaByStubble2)
+ cbind(exp(CanolaByStubble2$b),exp(CanolaByStubble2$se), exp(CanolaByStubble2$ci.lb),
+       exp(CanolaByStubble2$ci.ub),CanolaByStubble2$pval)
+```
+
+#5
+###*****5a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on WHEAT GRAIN YIELD#######
+``` {r}
+Wheat_testcrop<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+Wheat_testcrop 
+global_wheat <- rma(LnRR, V, data = Wheat_testcrop)
+summary(global_wheat)
+cbind(exp(global_wheat$b),exp(global_wheat$se), exp(global_wheat$ci.lb),
+      exp(global_wheat$ci.ub),global_wheat$pval)
+regtest(global_wheat)
+ggqqplot(Wheat_testcrop$LnRR)
+shapiro.test(Wheat_testcrop$LnRR)
+```
+
+###***5b***##TO CHECK EFFECT  OF PULSE TYPE  ON WHEAT GRAIN YIELD####################
+``` {r}
+Wheat_testcrop<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ Wheat_testcrop             
+ Wheat_pulse_type <- rma(LnRR, V, 
+                       mods = ~ factor(Pulse_stubble) - 1, data = Wheat_testcrop)
+  summary(Wheat_pulse_type)
+ cbind(exp(Wheat_pulse_type$b),exp(Wheat_pulse_type$se), exp(Wheat_pulse_type$ci.lb),
+       exp(Wheat_pulse_type$ci.ub),Wheat_pulse_type$pval)
+
+ ggqqplot(Wheat_testcrop$LnRR)
+ shapiro.test(Wheat_testcrop$LnRR)
+ summary(glht(Wheat_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***5c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON WHEAT GRAIN YIELD####################
+``` {r}
+Wheat_testcrop<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ Wheat_testcrop             
+ Wheat_pulse_freq <- rma(LnRR, V, 
+                         mods = ~ factor(Pulse_frequency) - 1, data = Wheat_testcrop)
+ summary(Wheat_pulse_freq)
+ cbind(exp(Wheat_pulse_freq$b),exp(Wheat_pulse_freq$se), exp(Wheat_pulse_freq$ci.lb),
+       exp(Wheat_pulse_freq$ci.ub),Wheat_pulse_freq$pval)
+ summary(glht(Wheat_pulse_freq, linfct=cbind(contrMat(rep(1,4), type="Tukey"))), test=adjusted("none"))
+```
+
+##****5d****#This model compares PULSES-WHEAT vs differentcrops-WHEAT #######
+``` {r}
+ Wheat_testcrop<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ Wheat_testcrop             
+ WheatByStubble2 <- rma(LnRR2, V, 
+                        mods = ~ factor(Control_stubble) - 1, data = Wheat_testcrop)
+ summary(WheatByStubble2)
+ cbind(exp(WheatByStubble2$b),exp(WheatByStubble2$se), exp(WheatByStubble2$ci.lb),
+       exp(WheatByStubble2$ci.ub),WheatByStubble2$pval)
+ summary(glht(WheatByStubble2, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+# #######                Soil and environmental conditions                         #############
+#6
+#6a***To check impact of DIFFERENT CLIMATES on pulse effect on CEREAL GRAIN YIELD#############
+``` {r}
+Env_Cereal<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+ Env_Cereal             
+ Climate_Ce <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = Env_Cereal)
+ summary(Climate_Ce)
+ cbind(exp(Climate_Ce$b),exp(Climate_Ce$se), exp(Climate_Ce$ci.lb),
+       exp(Climate_Ce$ci.ub),Climate_Ce$pval)
+```
+ 
+#6b***To check impact of DIFFERENT CLIMATES on pulse effect on WHEAT GRAIN YIELD#############
+``` {r}
+ WHT_Env_Cereal<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ WHT_Env_Cereal             
+ Climate_WHT <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = WHT_Env_Cereal)
+ summary(Climate_WHT)
+ cbind(exp(Climate_WHT$b),exp(Climate_WHT$se), exp(Climate_WHT$ci.lb),
+       exp(Climate_WHT$ci.ub),Climate_WHT$pval)
+ summary(glht(Climate_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+ ggqqplot(WHT_Env_Cereal$LnRR)
+ shapiro.test(WHT_Env_Cereal$LnRR)
+```
+
+#6c***To check impact of DIFFERENT CLIMATES on pulse effect on CANOLA GRAIN YIELD#############
+``` {r}
+ Env_Oilseed<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+ Env_Oilseed  
+  Climate_Oi <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = Env_Oilseed)
+ #Climate_Oi <- rma(LnRR, V, mods = ~ Climate_koppen -1, data = Env_Oilseed)
+ summary(Climate_Oi)
+ cbind(exp(Climate_Oi$b),exp(Climate_Oi$se), exp(Climate_Oi$ci.lb),
+       exp(Climate_Oi$ci.ub),Climate_Oi$pval)
+ summary(glht(Climate_Oi, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+ 
+#7
+#7a***To check impact of MEAN ANNUAL TEMPERATURE (MAT) on pulse effect on CEREAL GRAIN YIELD#######
+``` {r}
+ Soil_MAT_Cereal<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+ Soil_MAT_Cereal             
+ Soil_MAT_Cereal <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_Cereal)
+ summary(Soil_MAT_Cereal)
+ cbind(exp(Soil_MAT_Cereal$b),exp(Soil_MAT_Cereal$se), exp(Soil_MAT_Cereal$ci.lb),
+       exp(Soil_MAT_Cereal$ci.ub),Soil_MAT_Cereal$pval)
+```
+ 
+#7b***To check impact of MEAN ANNUAL TEMPERATURE (MAT) on pulse effect on WHEAT GRAIN YIELD#######
+``` {r}
+ Soil_MAT_WHT<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ Soil_MAT_WHT             
+ Soil_MAT_WHT <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_WHT)
+ summary(Soil_MAT_WHT)
+ cbind(exp(Soil_MAT_WHT$b),exp(Soil_MAT_WHT$se), exp(Soil_MAT_WHT$ci.lb),
+       exp(Soil_MAT_WHT$ci.ub),Soil_MAT_WHT$pval)
+ summary(glht(Soil_MAT_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+ 
+#7c***To check impact of MEAN ANNUAL TEMPERATURE (MAT) on pulse effect on CANOLA GRAIN YIELD#######
+``` {r}
+Soil_MAT_Oilseed<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+ 
+ Soil_MAT_Oilseed      
+ Soil_MAT_Oilseed <- rma(LnRR, V, data = Soil_MAT_Oilseed)
+ summary(Soil_MAT_Oilseed)
+ cbind(exp(Soil_MAT_Oilseed$b),exp(Soil_MAT_Oilseed$se), exp(Soil_MAT_Oilseed$ci.lb),
+       exp(Soil_MAT_Oilseed$ci.ub),Soil_MAT_Oilseed$pval)
+```
+
+#8
+#8a***To check impact of MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on CEREAL GRAIN YIELD#######
+``` {r}
+ Soil_MAP_Cereal<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+ Soil_MAP_Cereal             
+ Soil_MAP_Cereal <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_Cereal)
+ summary(Soil_MAP_Cereal)
+ cbind(exp(Soil_MAP_Cereal$b),exp(Soil_MAP_Cereal$se), exp(Soil_MAP_Cereal$ci.lb),
+       exp(Soil_MAP_Cereal$ci.ub),Soil_MAP_Cereal$pval)
+```
+ 
+#8b***To check impact of MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on WHEAT GRAIN YIELD#######
+``` {r}
+ Soil_MAP_WHT<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+                              
+ Soil_MAP_WHT             
+ Soil_MAP_WHT <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_WHT)
+ summary(Soil_MAP_WHT)
+ cbind(exp(Soil_MAP_WHT$b),exp(Soil_MAP_WHT$se), exp(Soil_MAP_WHT$ci.lb),
+       exp(Soil_MAP_WHT$ci.ub),Soil_MAP_WHT$pval)
+ summary(glht(Soil_MAP_WHT, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+ 
+#8c***To check impact of MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on CANOLA GRAIN YIELD#######
+``` {r}
+Soil_MAP_Oilseed<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+ #all data is dry region
+ Soil_MAP_Oilseed             
+ Soil_MAP_Oilseed <- rma(LnRR, V, data = Soil_MAP_Oilseed)
+ summary(Soil_MAP_Oilseed)
+ cbind(exp(Soil_MAP_Oilseed$b),exp(Soil_MAP_Oilseed$se), exp(Soil_MAP_Oilseed$ci.lb),
+       exp(Soil_MAP_Oilseed$ci.ub),Soil_MAP_Oilseed$pval)
+```
+
+#9
+#9a***To check impact of SOIL TEXTURE on pulse effect on CEREAL GRAIN YIELD#######
+``` {r}
+ Texture_Cereal<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Cereal"))
+ Texture_Cereal             
+ Texture_Cereal <- rma(LnRR, V, mods = ~ factor(Textural_class) -1, data = Texture_Cereal)
+ summary(Texture_Cereal)
+ cbind(exp(Texture_Cereal$b),exp(Texture_Cereal$se), exp(Texture_Cereal$ci.lb),
+       exp(Texture_Cereal$ci.ub),Texture_Cereal$pval)
+``` 
+ 
+#9b***To check impact of SOIL TEXTURE on pulse effect on WHEAT GRAIN YIELD#######
+``` {r}
+ Texture_WHT<- dplyr::filter(Grainyield, Test_crop %in% c("Wheat"))
+ Texture_WHT             
+ Texture_WHT <- rma(LnRR, V, mods = ~ factor(Textural_class) -1, data = Texture_WHT)
+ summary(Texture_WHT)
+ cbind(exp(Texture_WHT$b),exp(Texture_WHT$se), exp(Texture_WHT$ci.lb),
+       exp(Texture_WHT$ci.ub),Texture_WHT$pval)
+ summary(glht(Texture_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+ 
+#9c***To check impact of SOIL TEXTURE on pulse effect on WHEAT GRAIN YIELD#######
+``` {r}
+ Texture_oilseed<- dplyr::filter(Grainyield, Test_crop_grp %in% c("Oilseed"))
+ Texture_oilseed             
+ Texture_oilseed <- rma(LnRR, V, mods = ~ factor(Textural_class) - 1, data = Texture_oilseed)
+ summary(Texture_oilseed)
+ cbind(exp(Texture_oilseed$b),exp(Texture_oilseed$se), exp(Texture_oilseed$ci.lb),
+       exp(Texture_oilseed$ci.ub),Texture_oilseed$pval)
+ summary(glht(Texture_oilseed, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+# #############################################################################
+# ###################  FOREST PLOT FOR GRAIN YIELD #############################
+``` {r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readxl) #To read excel file
+Data_4_forest_plots <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                  sheet = "grain")
+Data_4_forest_plots
+names(Data_4_forest_plots)
+str(Data_4_forest_plots)
+
+Data_4_forest_plots$Pulse_rtn <- factor(Data_4_forest_plots$Pulse_rtn) #Convert to factor
+```
+
+##**1**##########FOREST PLOT for WHEAT AND CANOLA TEST CROPS GRAIN YIELD#########
+##*########Figure 2
+``` {r}
+Grain_yield_WHT_CAN<- dplyr::filter(Data_4_forest_plots, 
+                                  Test_crop %in% c("Wheat","Canola"), #select item
+                                  !Test_crop_group %in% c("NA"))      #deselect item
+windows(900, 900, pointsize = 12)               #Create a new window for graph
+ggplot(data=Grain_yield_WHT_CAN,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+ #To request vertical line on graph
+  #ggtitle('(a) Test crop: Wheat')+
+  scale_y_continuous(breaks=seq(-10, 60, 10))+  #make a scale
+  xlab('Pulse effect')+                         #Label x-axix if you want
+  ylab("Grain yield change (%)  ± 95% CI")+     #Label y-axix if you want
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_grid(factor(Study_effect, 
+                    levels=c("Global","Pulse type","Pulse frequency",
+                             "Climate","MAT", "MAP", "Soil texture"))  #to order arrangement of variables on graph
+             ~ factor(Test_crop, levels=c("Wheat","Canola" )),
+             scales = "free_y")+ 
+  theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12, colour = "black"),
+        strip.text.x = element_text(size = 12, face="bold"),
+        panel.spacing.y =  unit(0, "cm", data = NULL),        #To remove spacing among each level of variables  
+         axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+       strip.text.y = element_text(hjust=0,vjust = 1,angle=90, size=10, face="bold"))+ #Where and how to set y-axis subgroup label
+  scale_shape_manual(values = c(15,5,17,6)) +         #To control shape of point per variable
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()              #To flip the grap
+```
+
+##**2**##########FOREST PLOT for ulse stubbles versus different non-pulse stubbles on wheat and canola yield#########
+##*########Figure 3
+
+``` {r}
+NonPulse_stubble_WHT_canola2<- dplyr::filter(Data_4_forest_plots,Formula %in% c("4d", "5d"))
+ggplot(data=NonPulse_stubble_WHT_canola2,
+       aes(x = Pulse_crop_variables,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Test_crop, shape = Shapemarker))+
+  geom_hline(aes(fill=Test_crop),yintercept =0, linetype=2)+
+  xlab('Pulse effect')+
+  scale_y_continuous(breaks=seq(-20, 20, 10))+
+  ylab("Grain yield change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Test_crop),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Test_crop, levels=c("Pulse-Wheat", "Pulse-Canola")), ncol=1,
+             scales = "free_y")+ 
+  theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        strip.text.y = element_blank(),
+        strip.text.x =  element_blank(),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.position = c(0.90, 0.800),
+        legend.text = element_text(size=10,face="bold"),
+        legend.title = element_blank(),
+        legend.background = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"))+
+  scale_shape_manual(values = c(15, 5, 17)) +
+  scale_colour_manual(values = c("red", "blue"))+
+  coord_flip()
+```
+
+##**3**##########FOREST PLOT for CEREAL TEST CROPS GRAIN YIELD#########
+##*######## Supplementary Figure 1 
+``` {r}
+Pulse_type_freq_overall_Ce<- dplyr::filter(Data_4_forest_plots,
+                                  Formula %in% c("3a", "3b","3c","6a","7a","8a","9a"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_type_freq_overall_Ce,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  ggtitle('Cereal')+
+  scale_y_continuous(breaks=seq(-20, 50, 10))+
+  xlab('Pulse effect')+
+  ylab("Grain yield change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture", "Soil pH")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+  theme(plot.title=element_text(size=13,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        #strip.text.x = element_text(angle=45),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+      scale_shape_manual(values = c(15, 5,17,6)) +
+      scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                      "darkgreen", "blue", "green"))+
+      coord_flip()
+```
+#~~~~~~~~~~~~~~~~ END FOR GRAIN YIELD~~~~~~~~~~~~~~~~~~~~~#
+
+
+###### ###################################################    
+###### B: GRAIN NITROGEN REMOVAL ANALYSIS #############################
+######            AND FOREST PLOT ##############################    
+###### ################################################### 
+###### ################################################### 
+##*###########################################################################
+``` {r}
+library(metafor)
+library(meta)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(forestplot)
+library(ggpubr)
+library(readr)
+library(multcomp)
+library(readxl)
+```
+
+
+``` {r}
+Nremoval <- read_excel("Meta_analysis pulse_effect.xlsx", 
+    sheet = "Nremoval")
+
+names(Nremoval)
+head (Nremoval)
+str(Nremoval)
+```
+
+#####To convert to factor######
+``` {r}
+Nremoval$Country <- factor(Nremoval$Country)
+Nremoval$Country
+str(Nremoval$Country) 
+Nremoval$Study_name  <- factor(Nremoval$Study_name )
+Nremoval$Publication_year  <- factor(Nremoval$Publication_year)
+Nremoval$Pulse_stubble <- factor(Nremoval$Pulse_stubble)
+Nremoval$Control_stubble <- factor(Nremoval$Control_stubble)
+Nremoval$Test_crop <- factor(Nremoval$Test_crop)
+Nremoval$Test_crop_grp <- factor(Nremoval$Test_crop_grp)
+Nremoval$Country <- factor(Nremoval$Country)
+Nremoval$Pulse_frequency<- factor(Nremoval$Pulse_frequency)
+Nremoval$Stubble_con_grp<- factor(Nremoval$Stubble_con_grp)
+Nremoval$Temp_grp<- factor(Nremoval$Temp_grp)
+Nremoval$Precip_grp<- factor(Nremoval$Precip_grp)
+Nremoval$Textural_class<- factor(Nremoval$Textural_class)
+#################################################################
+
+```
+# ######## MODEL: unreported SD were estimated by multiplying mean by 0.1######
+## ##########################################################################
+
+#1
+######******* Analysis global Nitrogenremoval (i.e., cereal and oilseed effect)#######
+``` {r}
+global_Nremoval <- rma(LnRR, V, data = Nremoval)
+global_Nremoval
+summary(global_Nremoval)
+cbind(exp(global_Nremoval$b),exp(global_Nremoval$se), exp(global_Nremoval$ci.lb),
+      exp(global_Nremoval$ci.ub),global_Nremoval$pval)
+funnel(global_Nremoval)
+regtest(global_Nremoval) 
+ggqqplot(Nremoval$LnRR)
+shapiro.test(Nremoval$LnRR)
+```
+
+#2
+######******* Comparing pulse effect increase of WHEAT versus CANOLA N grain removal  #######
+``` {r}
+WHT_vs_CAN_Nremoval<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat", "Canola"))
+WHT_vs_CAN_Nremoval
+WHT_vs_CAN_Nremoval <- rma(LnRR, V, 
+                                mods = ~ factor(Test_crop) - 1, data = WHT_vs_CAN_Nremoval)
+summary(WHT_vs_CAN_Nremoval)
+cbind(exp(WHT_vs_CAN_Nremoval$b),exp(WHT_vs_CAN_Nremoval$se), exp(WHT_vs_CAN_Nremoval$ci.lb),
+      exp(WHT_vs_CAN_Nremoval$ci.ub),WHT_vs_CAN_Nremoval$pval)
+summary(glht(WHT_vs_CAN_Nremoval, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#3
+##*****3a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on CEREAL GRAIN N REMOVAL #######
+``` {r}
+Pulse_cereal<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+Pulse_cereal <- rma(LnRR, V, data = Pulse_cereal)
+Pulse_cereal 
+fitstats(Pulse_cereal)
+cbind(exp(Pulse_cereal$b),exp(Pulse_cereal$se), exp(Pulse_cereal$ci.lb),
+      exp(Pulse_cereal$ci.ub),Pulse_cereal$pval)
+funnel(Pulse_cereal)
+regtest(Pulse_cereal) 
+ggqqplot(Nremoval$LnRR)
+shapiro.test(Nremoval$LnRR)
+```
+
+###***3b***##TO CHECK EFFECT  OF PULSE TYPE  ON CEREAL GRAIN N REMOVAL####################
+``` {r}
+Cereal_Test_crop<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+
+Cereal_Test_crop             
+Cereal_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1,  data = Cereal_Test_crop)
+summary(Cereal_pulse_type)
+cbind(exp(Cereal_pulse_type$b),exp(Cereal_pulse_type$se), exp(Cereal_pulse_type$ci.lb),
+      exp(Cereal_pulse_type$ci.ub),Cereal_pulse_type$pval)
+```
+
+
+###***3b***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON CEREAL GRAIN N REMOVAL####################
+``` {r}
+Cereal_Test_crop<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+Cereal_Test_crop 
+Cereal_pulse_freq <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1,  data = Cereal_Test_crop)
+summary(Cereal_pulse_freq)
+cbind(exp(Cereal_pulse_freq$b),exp(Cereal_pulse_freq$se), exp(Cereal_pulse_freq$ci.lb),
+      exp(Cereal_pulse_freq$ci.ub),Cereal_pulse_freq$pval)
+```
+
+#4
+##*****4a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on CANOLA GRAIN N REMOVAL #######
+``` {r}
+Pulse_oilseed1<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Pulse_oilseed <- rma(LnRR, V, data = Pulse_oilseed1)
+Pulse_oilseed
+fitstats(Pulse_oilseed)
+cbind(exp(Pulse_oilseed$b),exp(Pulse_oilseed$se), exp(Pulse_oilseed$ci.lb),
+      exp(Pulse_oilseed$ci.ub),Pulse_oilseed$pval)
+ggqqplot(Pulse_oilseed1$LnRR)
+shapiro.test(Pulse_oilseed1$LnRR)
+```
+
+###***4b***##TO CHECK EFFECT  OF PULSE TYPE  ON CANOLA GRAIN N REMOVAL ####################
+``` {r}
+Pulse_oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Pulse_oilseed             
+Oilseed_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1,  data = Pulse_oilseed)
+summary(Oilseed_pulse_type)
+cbind(exp(Oilseed_pulse_type$b),exp(Oilseed_pulse_type$se), exp(Oilseed_pulse_type$ci.lb),
+      exp(Oilseed_pulse_type$ci.ub),Oilseed_pulse_type$pval)
+summary(glht(Oilseed_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***4c***##TO CHECK EFFECT  OF PULSE Frequency  ON CANOLA GRAIN N REMOVAL ####################
+#########****4c***TO CHECKT PULSE STUBBLE Frequency #################
+``` {r}
+Pulse_oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Pulse_oilseed 
+Oilseed_pulse_freq <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1,  data = Pulse_oilseed)
+summary(Oilseed_pulse_freq)
+cbind(exp(Oilseed_pulse_freq$b),exp(Oilseed_pulse_freq$se), exp(Oilseed_pulse_freq$ci.lb),
+      exp(Oilseed_pulse_freq$ci.ub),Oilseed_pulse_freq$pval)
+summary(glht(Oilseed_pulse_freq, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#5
+#*****5a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on WHEAT GRAIN N REMOVAL#######
+``` {r}
+Pulse_Wheat1<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Pulse_Wheat <- rma(LnRR, V, data = Pulse_Wheat1)
+Pulse_Wheat 
+weights(Pulse_Wheat)
+summary(Pulse_Wheat)
+cbind(exp(Pulse_Wheat$b),exp(Pulse_Wheat$se), exp(Pulse_Wheat$ci.lb),
+      exp(Pulse_Wheat$ci.ub),Pulse_Wheat$pval)
+funnel(Pulse_Wheat)
+regtest(Pulse_Wheat) 
+ggqqplot(Pulse_Wheat1$LnRR)
+shapiro.test(Pulse_Wheat1$LnRR)
+```
+
+###***5b***##TO CHECK EFFECT  OF PULSE TYPE  ON WHEAT GRAIN N REMOVAL####################
+``` {r}
+Wheat_Test_crop<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Wheat_Test_crop             
+Wheat_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1,  data = Wheat_Test_crop)
+summary(Wheat_pulse_type)
+cbind(exp(Wheat_pulse_type$b),exp(Wheat_pulse_type$se), exp(Wheat_pulse_type$ci.lb),
+      exp(Wheat_pulse_type$ci.ub),Wheat_pulse_type$pval)
+summary(glht(Wheat_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***5b***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON WHEAT GRAIN N REMOVAL####################
+``` {r}
+Wheat_Test_crop<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Wheat_Test_crop 
+Wheat_pulse_freq <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1,  data = Wheat_Test_crop)
+summary(Wheat_pulse_freq)
+cbind(exp(Wheat_pulse_freq$b),exp(Wheat_pulse_freq$se), exp(Wheat_pulse_freq$ci.lb),
+      exp(Wheat_pulse_freq$ci.ub),Wheat_pulse_freq$pval)
+summary(glht(Wheat_pulse_freq, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+## #############Soil and environmental factors########################################
+#6
+###***6a***To check impact of DIFFERENT CLIMATES on pulse effect on CEREAL GRAIN N REMOVAL#############
+``` {r}
+Env_NRemoval_Ce<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+Env_NRemoval_Ce             
+Climate_NRemoval_Ce <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = Env_NRemoval_Ce)
+summary(Climate_NRemoval_Ce)
+cbind(exp(Climate_NRemoval_Ce$b),exp(Climate_NRemoval_Ce$se), exp(Climate_NRemoval_Ce$ci.lb),
+      exp(Climate_NRemoval_Ce$ci.ub),Climate_NRemoval_Ce$pval)
+```
+
+###***6b***To check impact of DIFFERENT CLIMATES on pulse effect on WHEAT GRAIN N REMOVAL#############
+``` {r}
+WHT_Env_NRemoval<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+WHT_Env_NRemoval             
+Climate_WHT <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = WHT_Env_NRemoval)
+summary(Climate_WHT)
+cbind(exp(Climate_WHT$b),exp(Climate_WHT$se), exp(Climate_WHT$ci.lb),
+      exp(Climate_WHT$ci.ub),Climate_WHT$pval)
+
+summary(glht(Climate_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***6c***To check impact of DIFFERENT CLIMATES on pulse effect on CANOLA GRAIN N REMOVAL#############
+``` {r}
+Env_Oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Env_Oilseed  
+Climate_Oi <- rma(LnRR, V, mods = ~ Climate_koppen -1, data = Env_Oilseed)
+summary(Climate_Oi)
+cbind(exp(Climate_Oi$b),exp(Climate_Oi$se), exp(Climate_Oi$ci.lb),
+      exp(Climate_Oi$ci.ub),Climate_Oi$pval)
+summary(glht(Climate_Oi, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#7
+###***7a***To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on CEREAL GRAIN N REMOVAL#############
+``` {r}
+Soil_MAT_Cereal<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+Soil_MAT_Cereal             
+Soil_MAT_Cereal <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_Cereal)
+summary(Soil_MAT_Cereal)
+cbind(exp(Soil_MAT_Cereal$b),exp(Soil_MAT_Cereal$se), exp(Soil_MAT_Cereal$ci.lb),
+      exp(Soil_MAT_Cereal$ci.ub),Soil_MAT_Cereal$pval)
+```
+
+###***7b***To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on WHEAT GRAIN N REMOVAL#############
+``` {r}
+Soil_MAT_WHT<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Soil_MAT_WHT             
+Soil_MAT_WHT <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_WHT)
+summary(Soil_MAT_WHT)
+cbind(exp(Soil_MAT_WHT$b),exp(Soil_MAT_WHT$se), exp(Soil_MAT_WHT$ci.lb),
+      exp(Soil_MAT_WHT$ci.ub),Soil_MAT_WHT$pval)
+summary(glht(Soil_MAT_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***7c***To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on CANOLA GRAIN N REMOVAL#############
+``` {r}
+Soil_MAT_Oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Soil_MAT_Oilseed             
+Soil_MAT_Oilseed <- rma(LnRR, V,   data = Soil_MAT_Oilseed)
+summary(Soil_MAT_Oilseed)
+cbind(exp(Soil_MAT_Oilseed$b),exp(Soil_MAT_Oilseed$se), exp(Soil_MAT_Oilseed$ci.lb),
+      exp(Soil_MAT_Oilseed$ci.ub),Soil_MAT_Oilseed$pval)
+
+#summary(glht(Soil_MAT_Oilseed, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#8
+###***8a***To check impact of DIFFERENT MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on CEREAL GRAIN N REMOVAL#############
+``` {r}
+Soil_MAP_Cereal<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+Soil_MAP_Cereal             
+Soil_MAP_Cereal <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_Cereal)
+summary(Soil_MAP_Cereal)
+cbind(exp(Soil_MAP_Cereal$b),exp(Soil_MAP_Cereal$se), exp(Soil_MAP_Cereal$ci.lb),
+      exp(Soil_MAP_Cereal$ci.ub),Soil_MAP_Cereal$pval)
+```
+
+###***8b***To check impact of DIFFERENT MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on WHEAT GRAIN N REMOVAL#############
+``` {r}
+Soil_MAP_WHT<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Soil_MAP_WHT             
+Soil_MAP_WHT <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_WHT)
+summary(Soil_MAP_WHT)
+cbind(exp(Soil_MAP_WHT$b),exp(Soil_MAP_WHT$se), exp(Soil_MAP_WHT$ci.lb),
+      exp(Soil_MAP_WHT$ci.ub),Soil_MAP_WHT$pval)
+summary(glht(Soil_MAP_WHT, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+###***8c***To check impact of DIFFERENT MEAN ANNUAL PRECIPITATION (MAP) on pulse effect on CANOLA GRAIN N REMOVAL#############
+``` {r}
+Soil_MAP_Oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+
+Soil_MAP_Oilseed             
+Soil_MAP_Oilseed <- rma(LnRR, V,  data = Soil_MAP_Oilseed)
+summary(Soil_MAP_Oilseed)
+cbind(exp(Soil_MAP_Oilseed$b),exp(Soil_MAP_Oilseed$se), exp(Soil_MAP_Oilseed$ci.lb),
+      exp(Soil_MAP_Oilseed$ci.ub),Soil_MAP_Oilseed$pval)
+
+```
+
+#9
+###***9a***To check impact of DIFFERENT SOIL TEXTURE on pulse effect on CEREAL GRAIN N REMOVAL#############
+``` {r}
+Texture_Cereal<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Cereal"))
+                               Texture_Cereal             
+Texture_Cereal <- rma(LnRR, V, mods = ~ factor(Textural_class) -1, data = Texture_Cereal)
+summary(Texture_Cereal)
+cbind(exp(Texture_Cereal$b),exp(Texture_Cereal$se), exp(Texture_Cereal$ci.lb),
+      exp(Texture_Cereal$ci.ub),Texture_Cereal$pval)
+```
+
+###***9b***To check impact of DIFFERENT SOIL TEXTURE on pulse effect on WHEAT GRAIN N REMOVAL#############
+``` {r}
+Texture_WHT<- dplyr::filter(Nremoval, Test_crop %in% c("Wheat"))
+Texture_WHT             
+Texture_WHT <- rma(LnRR, V, mods = ~ factor(Textural_class) -1, data = Texture_WHT)
+summary(Texture_WHT)
+cbind(exp(Texture_WHT$b),exp(Texture_WHT$se), exp(Texture_WHT$ci.lb),
+      exp(Texture_WHT$ci.ub),Texture_WHT$pval)
+summary(glht(Texture_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***9c***To check impact of DIFFERENT SOIL TEXTURE on pulse effect on CANOLA GRAIN N REMOVAL#############
+``` {r}
+Texture_oilseed<- dplyr::filter(Nremoval, Test_crop_grp %in% c("Oilseed"))
+Texture_oilseed             
+Texture_oilseed <- rma(LnRR, V, mods = ~ factor(Textural_class) - 1, data = Texture_oilseed)
+summary(Texture_oilseed)
+cbind(exp(Texture_oilseed$b),exp(Texture_oilseed$se), exp(Texture_oilseed$ci.lb),
+      exp(Texture_oilseed$ci.ub),Texture_oilseed$pval)
+summary(glht(Texture_oilseed, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+## ##################  FOREST PLOT FOR GRAIN NITROGEN REMOVAL  #############################
+## ##################                             ############################    
+``` {r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readxl)
+Data_4_forest_plots <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                  sheet = "Nremoval")
+
+Data_4_forest_plots
+names(Data_4_forest_plots)
+str(Data_4_forest_plots)
+
+Data_4_forest_plots$Pulse_rtn <- factor(Data_4_forest_plots$Pulse_rtn)
+```
+
+##**1**###################FOREST PLOT for overall WHEAT and CANOLA TEST CROP#########
+######Type, frequency, soil and environmental conditions and overall of pulse#########
+###### Figure 4 
+``` {r}
+Pulse_NRemoval_WHT<- dplyr::filter(Data_4_forest_plots, Test_crop %in% c("Wheat","Canola"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_NRemoval_WHT,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  #ggtitle('(a) Test crop: Wheat')+
+  scale_y_continuous(breaks=seq(-20, 100, 20))+
+  xlab('Pulse effect')+
+  ylab(" Grain nitrogen removal change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_grid(factor(Study_effect, 
+          levels=c("Global","Pulse type","Pulse frequency",
+          "Climate","MAT", "MAP", "Soil texture")) ~ factor(Test_crop,
+                                  levels=c("Wheat","Canola" )),
+              scales = "free_y")+ 
+  theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        strip.text.x = element_text(size = 13, face="bold"),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+```
+
+##**2**###################FOREST PLOT for ALL CEREAL TEST CROPS#########
+###### Supplemental Figure 2
+##***************################*
+``` {r}
+Pulse_NRemoval_Cereal<- dplyr::filter(Data_4_forest_plots, 
+                                 Test_crop %in% c("Cereal"))
+ggplot(data=Pulse_NRemoval_Cereal,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  ggtitle('Cereal')+
+  scale_y_continuous(breaks=seq(-20, 50, 10))+
+  xlab('Pulse effect')+
+  ylab(" Grain nitrogen removal change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture", "Soil pH")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+  theme(plot.title=element_text(size=13,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        #strip.text.x = element_text(angle=45),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+```
+#~~~~~~~~~~~~~~~~ END FOR GRAIN NITROGEN REMOVAL~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+###### #########################################################################    
+###### C: NITROGEN FERTILIZER USE EFFICIENCY ANALYSIS #########
+######            AND FOREST PLOT ##############################    
+###### ################################################### 
+###### ################################################### 
+
+``` {r}
+library(metafor)
+library(meta)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(forestplot)
+library(ggpubr)
+library(multcomp)
+library(readxl)
+```
+
+``` {r}
+FUE_N_Low1 <- read_excel("Meta_analysis pulse_effect.xlsx", 
+    sheet = "FUE")
+
+names(FUE)
+head (FUE)
+str(FUE) 
+
+#####To convert to factor######
+FUE$Country <- factor(FUE$Country)
+FUE$Country
+str(FUE$Country) #To check conversion to factor and how many level
+FUE$Study_name  <- factor(FUE$Study_name )
+FUE$Publication_year  <- factor(FUE$Publication_year)
+FUE$Pulse_stubble <- factor(FUE$Pulse_stubble)
+FUE$Control_stubble <- factor(FUE$Control_stubble)
+FUE$Result_year <- factor(FUE$Result_year)
+FUE$Test_crop <- factor(FUE$Test_crop)
+FUE$Test_crop_grp <- factor(FUE$Test_crop_grp)
+FUE$Country <- factor(FUE$Country)
+FUE$Pulse_frequency<- factor(FUE$Pulse_frequency)
+FUE$Temp_grp<- factor(FUE$Temp_grp)
+FUE$Precip_grp<- factor(FUE$Precip_grp)
+FUE$Textural_class<- factor(FUE$Textural_class)
+FUE$Climate_koppen<- factor(FUE$Climate_koppen)
+FUE$Pulse_stubble_N_appl <- as.numeric(FUE$Pulse_stubble_N_appl)
+```
+
+## MODEL variance: NO SD. Variance estimated by sum of n divided by product of n .. Rodriguez et al 2020######
+## ##########################################################################
+#1
+#**1a**This model checks GLOBAL EFFECT of inclusion of pulses on CEREAL FUE#######
+``` {r}
+Pulse_cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Pulse_cereal_FUE <- rma(LnRR, Vf, data = Pulse_cereal)
+Pulse_cereal_FUE
+fitstats(Pulse_cereal_FUE)
+cbind(exp(Pulse_cereal_FUE$b),exp(Pulse_cereal_FUE$se), exp(Pulse_cereal_FUE$ci.lb),
+        exp(Pulse_cereal_FUE$ci.ub),Pulse_cereal_FUE$pval)
+funnel(Pulse_cereal_FUE)
+regtest(Pulse_cereal_FUE) 
+ggqqplot(Pulse_cereal$LnRR)
+shapiro.test(Pulse_cereal$LnRR)
+```
+
+###***1b***##TO CHECK EFFECT  OF PULSE TYPE  ON CEREAL NFUE####################
+``` {r}
+Pulse_cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Pulse_cereal             
+PulsetypeCe_FUE <- rma(LnRR, Vf, mods = ~ factor(Pulse_stubble) -1, 
+                       data = Pulse_cereal)
+summary(PulsetypeCe_FUE)
+cbind(exp(PulsetypeCe_FUE$b),exp(PulsetypeCe_FUE$se), exp(PulsetypeCe_FUE$ci.lb),
+      exp(PulsetypeCe_FUE$ci.ub),PulsetypeCe_FUE$pval)
+```
+
+###***1c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON CEREAL FUE####################
+``` {r}
+Pulse_cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Pulse_cereal             
+Pulsefreq_Ce_FUE <- rma(LnRR, Vf, mods = ~ factor(Pulse_frequency) -1, 
+                       data = Pulse_cereal)
+summary(Pulsefreq_Ce_FUE)
+cbind(exp(Pulsefreq_Ce_FUE$b),exp(Pulsefreq_Ce_FUE$se), exp(Pulsefreq_Ce_FUE$ci.lb),
+      exp(Pulsefreq_Ce_FUE$ci.ub),Pulsefreq_Ce_FUE$pval)
+```
+
+
+#*****2a*****##################################################################
+####This model checks GLOBAL EFFECT of inclusion of pulses on WHEAT FUE#######
+``` {r}
+Pulse_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+Pulse_WHT_FUE <- rma(LnRR, Vf, data = Pulse_WHT)
+Pulse_WHT_FUE
+summary(Pulse_WHT_FUE)
+cbind(exp(Pulse_WHT_FUE$b),exp(Pulse_WHT_FUE$se), exp(Pulse_WHT_FUE$ci.lb),
+      exp(Pulse_WHT_FUE$ci.ub),Pulse_WHT_FUE$pval)
+funnel(Pulse_WHT_FUE)
+regtest(Pulse_WHT_FUE) 
+ggqqplot(Pulse_WHT$LnRR)
+shapiro.test(Pulse_WHT$LnRR)
+```
+
+###***2b***##TO CHECK EFFECT  OF PULSE TYPE  ON WHEAT FUE####################
+``` {r}
+Pulse_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+Pulse_WHT             
+Pulsetype_WHT_FUE <- rma(LnRR, Vf, mods = ~ factor(Pulse_stubble) -1, 
+                       data = Pulse_WHT)
+summary(Pulsetype_WHT_FUE)
+cbind(exp(Pulsetype_WHT_FUE$b),exp(Pulsetype_WHT_FUE$se), exp(Pulsetype_WHT_FUE$ci.lb),
+      exp(Pulsetype_WHT_FUE$ci.ub),Pulsetype_WHT_FUE$pval)
+summary(glht(Pulsetype_WHT_FUE, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+###***2c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON WHEAT FUE####################
+``` {r}
+Pulse_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+Pulse_WHT             
+Pulsefreq_WHT_FUE <- rma(LnRR, Vf, mods = ~ factor(Pulse_frequency) -1, 
+                        data = Pulse_WHT)
+summary(Pulsefreq_WHT_FUE)
+cbind(exp(Pulsefreq_WHT_FUE$b),exp(Pulsefreq_WHT_FUE$se), exp(Pulsefreq_WHT_FUE$ci.lb),
+      exp(Pulsefreq_WHT_FUE$ci.ub),Pulsefreq_WHT_FUE$pval)
+summary(glht(Pulsefreq_WHT_FUE, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#3
+#**3a**To check impact of DIFFERENT CLIMATES on pulse effect on CEREAL FUE#############
+``` {r}
+Env_FUE_Ce<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Env_FUE_Ce             
+Climate_FUE_Ce <- rma(LnRR, Vf, mods = ~ factor(Climate_koppen) -1, data = Env_FUE_Ce)
+summary(Climate_FUE_Ce)
+cbind(exp(Climate_FUE_Ce$b),exp(Climate_FUE_Ce$se), exp(Climate_FUE_Ce$ci.lb),
+      exp(Climate_FUE_Ce$ci.ub),Climate_FUE_Ce$pval)
+```
+
+#**3b**To check impact of DIFFERENT CLIMATES on pulse effect on WHEAT FUE#############
+``` {r}
+WHT_Env_FUE<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+WHT_Env_FUE             
+Climate_WHT <- rma(LnRR, Vf, mods = ~ factor(Climate_koppen) -1, data = WHT_Env_FUE)
+summary(Climate_WHT)
+cbind(exp(Climate_WHT$b),exp(Climate_WHT$se), exp(Climate_WHT$ci.lb),
+      exp(Climate_WHT$ci.ub),Climate_WHT$pval)
+summary(glht(Climate_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#4
+#**4a**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on CEREAL FUE#############
+``` {r}
+Soil_MAT_Cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Soil_MAT_Cereal             
+Soil_MAT_Cereal <- rma(LnRR, Vf, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_Cereal)
+summary(Soil_MAT_Cereal)
+cbind(exp(Soil_MAT_Cereal$b),exp(Soil_MAT_Cereal$se), exp(Soil_MAT_Cereal$ci.lb),
+      exp(Soil_MAT_Cereal$ci.ub),Soil_MAT_Cereal$pval)
+summary(glht(Soil_MAT_Cereal, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#**4b**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on WHEAT FUE#############
+``` {r}
+Soil_MAT_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+Soil_MAT_WHT             
+Soil_MAT_WHT <- rma(LnRR, Vf, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_WHT)
+summary(Soil_MAT_WHT)
+cbind(exp(Soil_MAT_WHT$b),exp(Soil_MAT_WHT$se), exp(Soil_MAT_WHT$ci.lb),
+      exp(Soil_MAT_WHT$ci.ub),Soil_MAT_WHT$pval)
+summary(glht(Soil_MAT_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#5
+#**5a**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on CEREAL FUE#############
+``` {r}
+Soil_MAP_Cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"))
+Soil_MAP_Cereal             
+Soil_MAP_Cereal <- rma(LnRR, Vf, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_Cereal)
+summary(Soil_MAP_Cereal)
+cbind(exp(Soil_MAP_Cereal$b),exp(Soil_MAP_Cereal$se), exp(Soil_MAP_Cereal$ci.lb),
+      exp(Soil_MAP_Cereal$ci.ub),Soil_MAP_Cereal$pval)
+
+summary(glht(Soil_MAP_Cereal, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#**5b**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on WHEAT FUE#############
+``` {r}
+Soil_MAP_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"))
+Soil_MAP_WHT             
+Soil_MAP_WHT <- rma(LnRR, Vf, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_WHT)
+summary(Soil_MAP_WHT)
+cbind(exp(Soil_MAP_WHT$b),exp(Soil_MAP_WHT$se), exp(Soil_MAP_WHT$ci.lb),
+      exp(Soil_MAP_WHT$ci.ub),Soil_MAP_WHT$pval)
+summary(glht(Soil_MAP_WHT, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#6
+#**6a**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on CEREAL FUE#############
+########### CEREAL Test crop IN DIFFERENT SOIL TEXTURE###
+``` {r}
+Texture_Cereal<- dplyr::filter(FUE_N_Low1, Test_crop_grp %in% c("Cereal"),
+                               Textural_class%in% c("Fine","Medium", "Coarse") )
+Texture_Cereal             
+Texture_Cereal <- rma(LnRR, Vf, mods = ~ factor(Textural_class) -1, data = Texture_Cereal)
+summary(Texture_Cereal)
+cbind(exp(Texture_Cereal$b),exp(Texture_Cereal$se), exp(Texture_Cereal$ci.lb),
+      exp(Texture_Cereal$ci.ub),Texture_Cereal$pval)
+
+summary(glht(Texture_Cereal, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#**6b**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on WHEAT FUE#############
+``` {r}
+Texture_WHT<- dplyr::filter(FUE_N_Low1, Test_crop %in% c("Wheat"),
+                            Textural_class%in% c("Fine","Medium", "Coarse") )
+Texture_WHT             
+Texture_WHT <- rma(LnRR, Vf, mods = ~ factor(Textural_class) -1, data = Texture_WHT)
+summary(Texture_WHT)
+cbind(exp(Texture_WHT$b),exp(Texture_WHT$se), exp(Texture_WHT$ci.lb),
+      exp(Texture_WHT$ci.ub),Texture_WHT$pval)
+summary(glht(Texture_WHT, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+# #############################################################################
+## ##################  FOREST PLOT FOR NFUE #############################
+``` {r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readxl)
+Data_4_forest_plots <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                  sheet = "FUE")
+
+Data_4_forest_plots
+names(Data_4_forest_plots)
+str(Data_4_forest_plots)
+Data_4_forest_plots$Pulse_rtn <- factor(Data_4_forest_plots$Pulse_rtn)
+```
+
+######**************************************##############
+##**1**############FOREST PLOT for WHEAT FUE WHEAT#########
+#### FIGURE 5
+``` {r}
+Pulse_FUE_WHT<- dplyr::filter(Data_4_forest_plots, 
+                          Test_crop %in% c("Wheat"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_FUE_WHT,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  #ggtitle('(a) Test crop: Wheat')+
+  scale_y_continuous(breaks=seq(-20, 100, 20))+
+  xlab('Pulse effect')+
+  ylab("Nitrogen fertilizer use efficiency change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture", "Soil pH")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+    theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        strip.text.x = element_text(size = 13, face="bold"),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+```
+
+##**2**###################FOREST PLOT for ALL CEREAL TEST CROPS#########
+## ######### Supplementary Figure 3
+``` {r}
+Pulse_FUE_Cereal<- dplyr::filter(Data_4_forest_plots, 
+                                 Test_crop %in% c("Cereal"))
+ggplot(data=Pulse_FUE_Cereal,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  ggtitle('Cereal')+
+  scale_y_continuous(breaks=seq(-20, 50, 10))+
+  xlab('Pulse effect')+
+  ylab("Nitrogen fertilizer use efficiency change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture", "Soil pH")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+  theme(plot.title=element_text(size=13,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        #strip.text.x = element_text(angle=45),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+         panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+```
+#~~~~~~~~~~~~~~~~ END FOR NITROGEN FERILIZER USE EFFICIENCY~~~~~~~~~~~~~~~~~~~~~#
+
+    
+###### ###################################################    
+###### D: WATER USE EFFICIENCY ANALYSIS #########
+######            AND FOREST PLOT ##############################    
+###### ################################################### 
+###### ###################################################  
+``` {r}
+library(metafor)
+library(meta)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(forestplot)
+library(readr)
+library(ggpubr)
+library(multcomp)
+library(readxl)
+```
+
+``` {r}
+WUE <- read_excel("Meta_analysis pulse_effect.xlsx", 
+    sheet = "WUE")
+
+names(WUE)
+head (WUE)
+str(WUE) 
+
+#####To convert to factor######
+WUE$Pulse_stubble <- factor(WUE$Pulse_stubble)
+WUE$Control_stubble <- factor(WUE$Control_stubble)
+WUE$Result_year <- factor(WUE$Result_year)
+WUE$Test_crop <- factor(WUE$Test_crop)
+WUE$Test_crop_grp <- factor(WUE$Test_crop_grp)
+WUE$Country <- factor(WUE$Country)
+WUE$Pulse_frequency<- factor(WUE$Pulse_frequency)
+WUE$Texture_grp <-factor(WUE$Texture_grp)
+WUE$Temp_grp <-factor(WUE$Temp_grp)
+WUE$Precip_grp <-factor(WUE$Precip_grp)
+```
+## ####### MODEL 1: unreported SD was calculated by multiply mean by 0.1#############
+# ###########################################################################
+#1
+######******* Analysis global WUE (i.e., cereal and oilseed)
+``` {r}
+global_WUE <- rma(LnRR, V, data = WUE)
+global_WUE
+summary(global_WUE)
+cbind(exp(global_WUE$b),exp(global_WUE$se), exp(global_WUE$ci.lb),
+      exp(global_WUE$ci.ub),global_WUE$pval)
+funnel(global_WUE)
+regtest(global_WUE) 
+ggqqplot(WUE$LnRR)
+shapiro.test(WUE$LnRR)
+```
+
+#2
+######******* Comparing pulse effect increase of WHEAT versus Canola WUE#######
+``` {r}
+WHT_vs_CAN_WUE<- dplyr::filter(WUE, Test_crop %in% c("Wheat", "Canola"))
+WHT_vs_CAN_WUE
+WHT_vs_CAN_WUE <- rma(LnRR, V, 
+                                mods = ~ factor(Test_crop) - 1, data = WHT_vs_CAN_WUE)
+summary(WHT_vs_CAN_WUE)
+cbind(exp(WHT_vs_CAN_WUE$b),exp(WHT_vs_CAN_WUE$se), exp(WHT_vs_CAN_WUE$ci.lb),
+      exp(WHT_vs_CAN_WUE$ci.ub),WHT_vs_CAN_WUE$pval)
+summary(glht(WHT_vs_CAN_WUE, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#3
+##**3a**This model checks GLOBAL EFFECT of inclusion of pulses on WHEAT WUE#######
+``` {r}
+Pulse_WHT_WUE1<- dplyr::filter(WUE, Test_crop %in% c("Wheat"), Pulse_frequency%in% c("1/2"))
+Pulse_WHT <- rma(LnRR, V, data = Pulse_WHT_WUE1)
+Pulse_WHT
+summary(Pulse_WHT)
+cbind(exp(Pulse_WHT$b),exp(Pulse_WHT$se), exp(Pulse_WHT$ci.lb),
+        exp(Pulse_WHT$ci.ub),Pulse_WHT$pval)
+funnel(Pulse_WHT)
+regtest(Pulse_WHT) 
+ggqqplot(Pulse_WHT_WUE1$LnRR)
+shapiro.test(Pulse_WHT_WUE1$LnRR)
+```
+
+###***3b***##TO CHECK EFFECT  OF PULSE TYPE  ON WHEAT WUE####################
+``` {r}
+Pulse_WHT_WUE<- dplyr::filter(WUE, Test_crop %in% c("Wheat"), Pulse_frequency%in% c("1/2"))
+Pulse_WHT_WUE             
+WHT_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1,  data = Pulse_WHT_WUE)
+summary(WHT_pulse_type)
+cbind(exp(WHT_pulse_type$b),exp(WHT_pulse_type$se), exp(WHT_pulse_type$ci.lb),
+      exp(WHT_pulse_type$ci.ub),WHT_pulse_type$pval)
+summary(glht(WHT_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+
+#4
+##**4a**This model checks GLOBAL EFFECT of inclusion of pulses on CANOLA WUE#######
+``` {r}
+Pulse_oilseed1<- dplyr::filter(WUE, Test_crop %in% c("Canola"))
+Pulse_oilseed <- rma(LnRR, V, data = Pulse_oilseed1)
+Pulse_oilseed
+fitstats(Pulse_oilseed)
+cbind(exp(Pulse_oilseed$b),exp(Pulse_oilseed$se), exp(Pulse_oilseed$ci.lb),
+      exp(Pulse_oilseed$ci.ub),Pulse_oilseed$pval)
+funnel(Pulse_oilseed)
+regtest(Pulse_oilseed) 
+ggqqplot(Pulse_oilseed1$LnRR)
+shapiro.test(Pulse_oilseed1$LnRR)
+```
+
+###***4b***##TO CHECK EFFECT  OF PULSE TYPE  ON CANOLA WUE####################
+``` {r}
+Pulse_oilseed_WUE<- dplyr::filter(WUE, Test_crop %in% c("Canola"))
+Pulse_oilseed_WUE             
+Cereal_pulse_type <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1,  data = Pulse_oilseed_WUE)
+summary(Cereal_pulse_type)
+cbind(exp(Cereal_pulse_type$b),exp(Cereal_pulse_type$se), exp(Cereal_pulse_type$ci.lb),
+      exp(Cereal_pulse_type$ci.ub),Cereal_pulse_type$pval)
+summary(glht(Cereal_pulse_type, linfct=cbind(contrMat(rep(1,3), type="Tukey"))), test=adjusted("none"))
+```
+## ########   soil and environmental conditions#####################################
+#5
+#**5a**To check impact of DIFFERENT CLIMATES on pulse effect on WHEAT WUE#############
+``` {r}
+WHT_Env_WUE<- dplyr::filter(WUE, Test_crop %in% c("Wheat"),Pulse_frequency%in% c("1/2"))
+WHT_Env_WUE             
+Climate_WHT <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = WHT_Env_WUE)
+summary(Climate_WHT)
+cbind(exp(Climate_WHT$b),exp(Climate_WHT$se), exp(Climate_WHT$ci.lb),
+      exp(Climate_WHT$ci.ub),Climate_WHT$pval)
+```
+
+#**5b**To check impact of DIFFERENT CLIMATES on pulse effect on CANOLA WUE#############
+``` {r}
+Env_Oilseed<- dplyr::filter(WUE, Test_crop_grp %in% c("Oilseed"))
+Env_Oilseed  
+Climate_Oi <- rma(LnRR, V, data = Env_Oilseed)
+summary(Climate_Oi)
+cbind(exp(Climate_Oi$b),exp(Climate_Oi$se), exp(Climate_Oi$ci.lb),
+      exp(Climate_Oi$ci.ub),Climate_Oi$pval)
+```
+
+#6
+#**6a**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on WHEAT WUE#############
+``` {r}
+Soil_MAT_WHT<- dplyr::filter(WUE, Test_crop %in% c("Wheat"),Pulse_frequency%in% c("1/2"))
+Soil_MAT_WHT             
+Soil_MAT_WHT <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_WHT)
+summary(Soil_MAT_WHT)
+cbind(exp(Soil_MAT_WHT$b),exp(Soil_MAT_WHT$se), exp(Soil_MAT_WHT$ci.lb),
+      exp(Soil_MAT_WHT$ci.ub),Soil_MAT_WHT$pval)
+summary(glht(Soil_MAT_WHT, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#**6b**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on CANOLA WUE#############
+``` {r}
+Soil_MAT_Oilseed<- dplyr::filter(WUE, Test_crop_grp %in% c("Oilseed"))
+
+Soil_MAT_Oilseed             
+Soil_MAT_Oilseed <- rma(LnRR, V, data = Soil_MAT_Oilseed)
+summary(Soil_MAT_Oilseed)
+cbind(exp(Soil_MAT_Oilseed$b),exp(Soil_MAT_Oilseed$se), exp(Soil_MAT_Oilseed$ci.lb),
+      exp(Soil_MAT_Oilseed$ci.ub),Soil_MAT_Oilseed$pval)
+summary(glht(Texture_oilseed, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#7
+#**7a**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on WHEAT WUE#############
+``` {r}
+Soil_MAP_WHT<- dplyr::filter(WUE, Test_crop %in% c("Wheat"),Pulse_frequency%in% c("1/2"))
+Soil_MAP_WHT             
+Soil_MAP_WHT <- rma(LnRR, V,  data = Soil_MAP_WHT)
+summary(Soil_MAP_WHT)
+cbind(exp(Soil_MAP_WHT$b),exp(Soil_MAP_WHT$se), exp(Soil_MAP_WHT$ci.lb),
+      exp(Soil_MAP_WHT$ci.ub),Soil_MAP_WHT$pval)
+```
+
+#**7b**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on CANOLA WUE#############
+``` {r}
+Soil_MAP_Oilseed<- dplyr::filter(WUE, Test_crop_grp %in% c("Oilseed"))
+
+Soil_MAP_Oilseed             
+Soil_MAP_Oilseed <- rma(LnRR, V, data = Soil_MAP_Oilseed)
+summary(Soil_MAP_Oilseed)
+cbind(exp(Soil_MAP_Oilseed$b),exp(Soil_MAP_Oilseed$se), exp(Soil_MAP_Oilseed$ci.lb),
+      exp(Soil_MAP_Oilseed$ci.ub),Soil_MAP_Oilseed$pval)
+```
+
+#8
+#**8a**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on WHEAT WUE#############
+``` {r}
+Texture_WHT<- dplyr::filter(WUE, Test_crop %in% c("Wheat"),Pulse_frequency%in% c("1/2"))
+Texture_WHT             
+Texture_WHT <- rma(LnRR, V, mods = ~ factor(Texture_grp) -1, data = Texture_WHT)
+summary(Texture_WHT)
+cbind(exp(Texture_WHT$b),exp(Texture_WHT$se), exp(Texture_WHT$ci.lb),
+      exp(Texture_WHT$ci.ub),Texture_WHT$pval)
+summary(glht(Texture_WHT, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+#**8b**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on CANOLA WUE#############
+``` {r}
+Texture_oilseed<- dplyr::filter(WUE, Test_crop_grp %in% c("Oilseed"))
+Texture_oilseed             
+Texture_oilseed <- rma(LnRR, V, mods = ~ factor(Texture_grp) - 1, data = Texture_oilseed)
+summary(Texture_oilseed)
+cbind(exp(Texture_oilseed$b),exp(Texture_oilseed$se), exp(Texture_oilseed$ci.lb),
+      exp(Texture_oilseed$ci.ub),Texture_oilseed$pval)
+summary(glht(Texture_oilseed, linfct=cbind(contrMat(rep(1,2), type="Tukey"))), test=adjusted("none"))
+```
+
+# ###################  FOREST PLOT FOR GRAIN YIELD #############################
+## ##################                             ############################    
+``` {r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readxl)
+Data_4_forest_plots <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                  sheet = "WUE")
+Data_4_forest_plots
+names(Data_4_forest_plots)
+str(Data_4_forest_plots)
+
+Data_4_forest_plots$Pulse_rtn <- factor(Data_4_forest_plots$Pulse_rtn)
+```
+#1
+## #####################Type, and overall of pulse##############################################
+###### Figure 6 
+``` {r}
+Pulse_WUE_WHT_CAN<- dplyr::filter(Data_4_forest_plots, 
+                                  Test_crop %in% c("Wheat","Canola"),
+                                  Pulse_freq %in% c("1/2"),!Study_effect %in% c("MAP"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_WUE_WHT_CAN,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  #ggtitle('(a) Test crop: Wheat')+
+  scale_y_continuous(breaks=seq(-10, 100, 10))+
+  xlab('Pulse effect')+
+  ylab("Water use efficiency change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_grid(factor(Study_effect, 
+                    levels=c("Global","Pulse type","Pulse frequency",
+                             "Climate","MAT", "Soil texture"))
+                   ~ factor(Test_crop,levels=c("Wheat","Canola" )),
+                      scales = "free_y")+ 
+  theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12,  colour = "black"),
+        strip.text.x = element_text(face = "bold", size = 13),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+        #strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "red", "blue",
+                                  "green"))+
+  coord_flip()
+```
+#~~~~~~~~~~~~~~~~ END FOR WATER USE EFFICICIENCY~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+
+
+###### ###################################################    
+###### E: SOIL ORGANIC CARBON ANALYSIS #############################
+######            AND FOREST PLOT ##############################    
+###### ################################################### 
+###### ################################################### 
+``` {r}
+library(metafor)
+library(meta)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(forestplot)
+library(readr)
+library(multcomp)
+library(readxl)
+```
+
+``` {r}
+SOC <- read_excel("Meta_analysis pulse_effect.xlsx", 
+    sheet = "SOC")
+names(SOC)
+#To see heading in excel file#
+head (SOC)#To see first few rows data##
+str(SOC) ##To see if my column is character or numerical##
+
+#####To convert to factor######
+SOC$Country <- factor(SOC$Country)
+SOC$Country
+str(SOC$Country) #To check conversion to factor and how many level
+SOC$Citation  <- factor(SOC$Citation )
+SOC$Pulse_stubble <- factor(SOC$Pulse_stubble)
+SOC$Control_stubble <- factor(SOC$Control_stubble)
+SOC$Pulse_frequency <- factor(SOC$Pulse_frequency)
+SOC$Temp_grp <- factor(SOC$Temp_grp)
+SOC$Precip_grp <- factor(SOC$Precip_grp)
+SOC$Climate_koppen <- factor(SOC$Climate_koppen)
+SOC$Result_year <- factor(SOC$Result_year)
+SOC$Test_crop <- factor(SOC$Test_crop)
+SOC$Texture_grp <- factor(SOC$Texture_grp)
+SOC$Temp_grp <- factor(SOC$Temp_grp)
+SOC$Precip_grp <- factor(SOC$Precip_grp)
+SOC$Country <- factor(SOC$Country)
+```
+
+## ####### MODEL: unreported SD was calculated by multiply mean by 0.1#############
+#1
+##**1a**##This model checks GLOBAL EFFECT of inclusion of pulses on CEREAL SOC#######
+``` {r}
+Pulse_cereal <- rma(LnRR, V, data = SOC)
+Pulse_cereal
+summary(Pulse_cereal)
+cbind(exp(Pulse_cereal$b),exp(Pulse_cereal$se), exp(Pulse_cereal$ci.lb),
+      exp(Pulse_cereal$ci.ub),Pulse_cereal$pval)
+```
+
+###***1b***##TO CHECK EFFECT  OF PULSE TYPE  ON CEREAL SOC####################
+``` {r}
+Type_Ce <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1, 
+                   data = SOC)
+summary(Type_Ce)
+cbind(exp(Type_Ce$b),exp(Type_Ce$se), exp(Type_Ce$ci.lb),
+      exp(Type_Ce$ci.ub),Type_Ce$pval)
+```
+
+###***1c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON CEREAL SOC####################
+``` {r}
+Freq_Ce <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1, 
+               data = SOC)
+summary(Freq_Ce)
+cbind(exp(Freq_Ce$b),exp(Freq_Ce$se), exp(Freq_Ce$ci.lb),
+      exp(Freq_Ce$ci.ub),Freq_Ce$pval)
+```
+
+#2
+##**2a**##This model checks GLOBAL EFFECT of inclusion of pulses on WHEAT SOC#######
+``` {r}
+Pulse_Wheat<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+Pulse_Wheat <- rma(LnRR, V, data = Pulse_Wheat)
+Pulse_Wheat
+summary(Pulse_Wheat)
+cbind(exp(Pulse_Wheat$b),exp(Pulse_Wheat$se), exp(Pulse_Wheat$ci.lb),
+      exp(Pulse_Wheat$ci.ub),Pulse_Wheat$pval)
+```
+
+###***2b***##TO CHECK EFFECT  OF PULSE TYPE  ON WHEAT SOC####################
+``` {r}
+Pulse_Wheat<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+Type_WHT <- rma(LnRR, V, mods = ~ factor(Pulse_stubble) -1, 
+               data = Pulse_Wheat)
+summary(Type_WHT)
+
+cbind(exp(Type_WHT$b),exp(Type_WHT$se), exp(Type_WHT$ci.lb),
+      exp(Type_WHT$ci.ub),Type_WHT$pval)
+```
+
+###***2c***##TO CHECK EFFECT  OF PULSE FREQUENCY  ON WHEAT SOC####################
+``` {r}
+Pulse_Wheat<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+Freq_WHT <- rma(LnRR, V, mods = ~ factor(Pulse_frequency) -1, 
+               data = Pulse_Wheat)
+summary(Freq_WHT)
+cbind(exp(Freq_WHT$b),exp(Freq_WHT$se), exp(Freq_WHT$ci.lb),
+      exp(Freq_WHT$ci.ub),Freq_WHT$pval)
+```
+## ############     soil and environmental condition   ##########################
+#3
+#**3a**To check impact of DIFFERENT CLIMATES on pulse effect on CEREAL SOC#############
+``` {r}        
+Climate_SOC_Ce <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = SOC)
+summary(Climate_SOC_Ce)
+cbind(exp(Climate_SOC_Ce$b),exp(Climate_SOC_Ce$se), exp(Climate_SOC_Ce$ci.lb),
+      exp(Climate_SOC_Ce$ci.ub),Climate_SOC_Ce$pval)
+```
+
+#**3b**To check impact of DIFFERENT CLIMATES on pulse effect on WHEAT SOC#############
+``` {r}
+WHT_Env_SOC<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+WHT_Env_SOC             
+Climate_WHT <- rma(LnRR, V, mods = ~ factor(Climate_koppen) -1, data = WHT_Env_SOC)
+summary(Climate_WHT)
+cbind(exp(Climate_WHT$b),exp(Climate_WHT$se), exp(Climate_WHT$ci.lb),
+      exp(Climate_WHT$ci.ub),Climate_WHT$pval)
+```
+
+#4
+#**4a**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on CEREAL SOC#############
+``` {r}
+Soil_MAT_Cereal <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = SOC)
+summary(Soil_MAT_Cereal)
+cbind(exp(Soil_MAT_Cereal$b),exp(Soil_MAT_Cereal$se), exp(Soil_MAT_Cereal$ci.lb),
+      exp(Soil_MAT_Cereal$ci.ub),Soil_MAT_Cereal$pval)
+```
+
+#**4b**To check impact of DIFFERENT MEAN ANNUAL TEMPERATURE on pulse effect on WHEAT SOC#############
+``` {r}
+Soil_MAT_WHT<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+Soil_MAT_WHT             
+Soil_MAT_WHT <- rma(LnRR, V, mods = ~ factor(Temp_grp) -1, data = Soil_MAT_WHT)
+summary(Soil_MAT_WHT)
+cbind(exp(Soil_MAT_WHT$b),exp(Soil_MAT_WHT$se), exp(Soil_MAT_WHT$ci.lb),
+      exp(Soil_MAT_WHT$ci.ub),Soil_MAT_WHT$pval)
+```
+
+#5
+#**5a**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on CEREAL SOC#############
+``` {r}
+Soil_MAP_Cereal <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = SOC)
+summary(Soil_MAP_Cereal)
+cbind(exp(Soil_MAP_Cereal$b),exp(Soil_MAP_Cereal$se), exp(Soil_MAP_Cereal$ci.lb),
+      exp(Soil_MAP_Cereal$ci.ub),Soil_MAP_Cereal$pval)
+```
+
+#**5b**To check impact of DIFFERENT MEAN ANNUAL Precipitation (MAP) on pulse effect on WHEAT SOC#############
+``` {r}
+Soil_MAP_WHT<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+Soil_MAP_WHT             
+Soil_MAP_WHT <- rma(LnRR, V, mods = ~ factor(Precip_grp) -1, data = Soil_MAP_WHT)
+summary(Soil_MAP_WHT)
+cbind(exp(Soil_MAP_WHT$b),exp(Soil_MAP_WHT$se), exp(Soil_MAP_WHT$ci.lb),
+      exp(Soil_MAP_WHT$ci.ub),Soil_MAP_WHT$pval)
+```
+
+#6
+#**6a**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on CEREAL SOC#############
+``` {r}
+Texture_Cereal <- rma(LnRR, V, mods = ~ factor(Texture_grp) -1, data = SOC)
+summary(Texture_Cereal)
+cbind(exp(Texture_Cereal$b),exp(Texture_Cereal$se), exp(Texture_Cereal$ci.lb),
+      exp(Texture_Cereal$ci.ub),Texture_Cereal$pval)
+
+```
+
+#**6b**To check impact of DIFFERENT SOIL TEXTURE on pulse effect on WHEAT SOC#############
+``` {r}
+Texture_WHT<- dplyr::filter(SOC, Test_crop %in% c("Wheat"))
+
+Texture_WHT             
+Texture_WHT <- rma(LnRR, V, mods = ~ factor(Texture_grp) -1, data = Texture_WHT)
+summary(Texture_WHT)
+cbind(exp(Texture_WHT$b),exp(Texture_WHT$se), exp(Texture_WHT$ci.lb),
+      exp(Texture_WHT$ci.ub),Texture_WHT$pval)
+```
+## ############################################################################
+## ##################  FOREST PLOT FOR GRAIN YIELD #############################
+``` {r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(readxl)
+Data_4_forest_plots <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                  sheet = "SOC")
+
+Data_4_forest_plots
+names(Data_4_forest_plots)
+str(Data_4_forest_plots)
+
+Data_4_forest_plots$Pulse_rtn <- factor(Data_4_forest_plots$Pulse_rtn)
+
+```
+
+#1
+## #####################Type, frequency, soil and environmental conditions and overall of pulse###########
+## Figure 7
+``` {r}
+Pulse_SOC_WHT<- dplyr::filter(Data_4_forest_plots, Test_crop %in% c("Wheat"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_SOC_WHT,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  ggtitle('Wheat')+
+  scale_y_continuous(breaks=seq(-15, 15, 5))+
+  xlab('Pulse effect')+
+  ylab(" Soil organic carbon change (%)  ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+  theme(plot.title=element_text(size=13,face="bold"),
+        axis.text=element_text(size = 12, colour = "black"),
+        #strip.text.x = element_text(angle=45),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15,5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+
+```
+
+##**2**########
+#######################Type, frequency, soil and environmental conditions and overall of pulse##################
+``` {r}
+Pulse_SOC_ce<- dplyr::filter(Data_4_forest_plots, Test_crop %in% c("Cereal"))
+windows(900, 900, pointsize = 12)
+ggplot(data=Pulse_SOC_ce,
+       aes(x = Pulse_rtn,y = ResponseRatio1, ymin = Lowerlimit1, ymax = Upperlimit1 ))+
+  geom_pointrange(aes(col=Study_effect, shape = Shapemarker))+
+  geom_hline(aes(fill=Study_effect),yintercept =0, linetype=2)+
+  ggtitle('Cereal')+
+  scale_y_continuous(breaks=seq(-15, 15, 5))+
+  xlab('Pulse effect')+
+  ylab(" Soil organic carbon change (%) ± 95% CI")+
+  geom_errorbar(aes(ymin=Lowerlimit1, ymax=Upperlimit1,col=Study_effect),width=0.5,cex=1)+ 
+  facet_wrap(~factor(Study_effect, levels=c("Global","Pulse type","Pulse frequency",
+                                            "Climate","MAT", "MAP", "Soil texture")), 
+             strip.position="right", ncol = 1,scales = "free_y")+ 
+  theme(plot.title=element_text(size=12,face="bold"),
+        axis.text=element_text(size = 12, colour = "black"),
+        #strip.text.x = element_text(angle=45),
+        panel.spacing.y =  unit(0, "cm", data = NULL),
+        axis.ticks.x = element_line(size = 1),
+        axis.ticks.y = element_line(size = 1),
+        axis.title.y = element_blank(),
+        axis.title=element_text(size=12,face="bold"),
+        legend.position = "none",
+        #legend.text = element_text(size=10,face="bold"),
+        #legend.title = element_blank(),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        strip.text.y = element_text(hjust=0,vjust = 1,angle=90, face="bold"))+
+  scale_shape_manual(values = c(15, 5, 17,6)) +
+  scale_colour_manual(values = c( "blueviolet", "black", "tomato4", "red",
+                                  "darkgreen", "blue", "green"))+
+  coord_flip()
+
+```
+#~~~~~~~~~~~~~~~~ END FOR SOIL ORGANIC CARBON~~~~~~~~~~~~~~~~~~~~~#
+
+
+
+
+# ############################################################
+###### LOCATIONS OF STUDY SITES ON WORLD MAP###################
+# #############################################################
+``` {r}
+library(ggmap) #for making map
+library(maptools) #for making map
+library(maps) #for map
+library(ggplot2)
+library(readxl)
+
+study_map <- read_excel("Data_4_forest_plots_August22_2022.xlsx", 
+                                 sheet = "Study_overview")
+
+study_map <- subset(study_map, select = c(Variable:Test_crop)) #or
+#study_map<-study_map[,2:18]
+study_map
+names (study_map)
+str(study_map) ##To see if my column is character or numerical##
+########### convert factor to numeric############
+study_map$Latitude <- as.numeric(study_map$Latitude)
+study_map$Longitude <- as.numeric(study_map$Longitude)
+study_map$Pulse_stubble <- factor(study_map$Pulse_stubble)
+str(study_map)
+study_map
+```
+# To draw a map
+``` {r}
+map <- NULL 
+mapWorld <- borders("world", colour="black", fill="lightblue") # create a layer of borders
+map <- ggplot() + 
+  #ggtitle('Locations of studies in meta-analysis')+
+  scale_y_continuous(breaks=seq(-75, 100, 25))+
+  scale_x_continuous(breaks=seq(-150, 200, 50))+
+  theme(plot.title=element_text(size=16,face="bold"),
+        panel.background = element_rect(fill = "white", colour = "grey50"),
+        axis.ticks = element_line(size = 1),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank(),
+        legend.position = c(0.69, 0.3),
+        legend.box.background = element_blank(),
+        axis.title=element_text(size=10,face="bold"))+
+    xlab('Longitude')+
+  ylab("Latitude")+   mapWorld
+map
+```
+
+#To lay study sites on the map###########
+``` {r}
+study_map2 <- map  + 
+   geom_point(data = study_map, aes(x=Longitude, y=Latitude,col = Pulse_stubble))+
+scale_colour_manual(values = c("red", "blue", "green"))
+study_map2
+```
+#~~~~~~~~~~~~~~~~ END FOR STUDY LOCATIONS~~~~~~~~~~~~~~~~~~~~~#
